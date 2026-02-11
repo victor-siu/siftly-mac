@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# App bundle output
+*.app
+
+# dnsproxy binary (runtime dependency, not source)
+dnsproxy
+
+# User config
+config.yaml
