@@ -2,7 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @ObservedObject var configManager: ConfigManager
+    @Bindable var configManager: ConfigManager
     @State private var newDomain: String = ""
     @State private var newServer: String = ""
     @State private var launchAtLogin: Bool = false
@@ -530,7 +530,6 @@ struct SettingsView: View {
             }
         } catch {
             print("Failed to update launch at login: \(error)")
-            // Revert toggle if failed
             checkLaunchAtLogin()
         }
     }

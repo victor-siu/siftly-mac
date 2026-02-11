@@ -2,7 +2,6 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Set activation policy to accessory to hide from Dock but allow UI
         NSApp.setActivationPolicy(.accessory)
     }
 }
@@ -10,27 +9,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SiftlyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var configManager: ConfigManager
-    @StateObject private var proxyManager: ProxyManager
-    
-    init() {
-        let config = ConfigManager()
-        _configManager = StateObject(wrappedValue: config)
-        _proxyManager = StateObject(wrappedValue: ProxyManager(configManager: config))
-    }
-    
+    @State private var configManager = ConfigManager()
+    @State private var proxyManager: ProxyManager?
+
     var body: some Scene {
         MenuBarExtra("Siftly", systemImage: iconName) {
-            SiftlyMenu(configManager: configManager, proxyManager: proxyManager)
+            SiftlyMenu(configManager: configManager, proxyManager: proxyManager!)
         }
-        
+
         Settings {
             SettingsView(configManager: configManager)
         }
     }
-    
-    var iconName: String {
-        switch proxyManager.state {
+
+    init() {
+        let config = ConfigManager()
+        _configManager = State(initialValue: config)
+        _proxyManager = State(initialValue: ProxyManager(configManager: config))
+    }
+
+    private var iconName: String {
+        guard let pm = proxyManager else { return "shield.slash" }
+        switch pm.state {
         case .active:
             return "shield.fill"
         case .inactive:

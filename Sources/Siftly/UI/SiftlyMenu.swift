@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct SiftlyMenu: View {
-    @ObservedObject var configManager: ConfigManager
-    @ObservedObject var proxyManager: ProxyManager
+    var configManager: ConfigManager
+    var proxyManager: ProxyManager
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {

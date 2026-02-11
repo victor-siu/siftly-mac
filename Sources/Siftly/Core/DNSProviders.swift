@@ -6,7 +6,9 @@ struct DNSProvider: Identifiable {
     let variants: [(protocol: String, address: String)]
 }
 
-let commonDNSProviders = [
+extension DNSProvider: @unchecked Sendable {}
+
+let commonDNSProviders: [DNSProvider] = [
     DNSProvider(name: "Google", variants: [
         ("Standard", "8.8.8.8"),
         ("DoT", "tls://dns.google"),

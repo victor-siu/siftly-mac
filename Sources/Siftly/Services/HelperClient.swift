@@ -3,7 +3,7 @@ import SiftlyShared
 
 /// Client for communicating with the SiftlyHelper privileged daemon
 /// over a Unix domain socket.
-final class HelperClient {
+final class HelperClient: Sendable {
 
     /// Whether the helper daemon is installed and its socket is reachable.
     static var isAvailable: Bool {
@@ -47,12 +47,10 @@ final class HelperClient {
         }
         defer { close(fd) }
 
-        // Set a 5-second timeout for send/recv
         var timeout = timeval(tv_sec: 5, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
 
-        // Connect to the helper socket
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
 
@@ -75,7 +73,6 @@ final class HelperClient {
             throw HelperError.connectionFailed(errno: errno)
         }
 
-        // Send request
         let requestData = try JSONEncoder().encode(request)
         let written = requestData.withUnsafeBytes { ptr in
             write(fd, ptr.baseAddress!, requestData.count)
@@ -84,10 +81,8 @@ final class HelperClient {
             throw HelperError.writeFailed(errno: errno)
         }
 
-        // Shutdown write side so helper knows we're done
         shutdown(fd, SHUT_WR)
 
-        // Read response
         var responseData = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
@@ -106,7 +101,7 @@ final class HelperClient {
 
 // MARK: - Errors
 
-enum HelperError: LocalizedError {
+enum HelperError: LocalizedError, Sendable {
     case socketCreationFailed(errno: Int32)
     case connectionFailed(errno: Int32)
     case writeFailed(errno: Int32)
