@@ -75,8 +75,8 @@ scripts/
 
 ## Configuration
 
-- App config: `~/.siftly/config.yaml` (dnsproxy YAML format)
-- Profiles: `~/.siftly/profiles.json`
+- App config: `~/Library/Application Support/Siftly/config.yaml` (dnsproxy YAML format)
+- Profiles: `~/Library/Application Support/Siftly/profiles.json`
 
 ## License
 

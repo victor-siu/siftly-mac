@@ -1,4 +1,5 @@
 import Foundation
+import SystemConfiguration
 import SiftlyShared
 
 /// SiftlyHelper — A privileged daemon that manages the dnsproxy process.
@@ -53,6 +54,59 @@ final class DNSProxyManager {
     }
 }
 
+// MARK: - Security Validation
+
+/// Verify that the binary path points to a dnsproxy executable inside a Siftly.app bundle.
+/// Allowed pattern: /Applications/Siftly.app/Contents/MacOS/dnsproxy
+///                  or user-relocated bundles like ~/Applications/Siftly.app/Contents/MacOS/dnsproxy
+private func isAllowedBinary(_ path: String) -> Bool {
+    let resolved = (path as NSString).resolvingSymlinksInPath
+    // Must end with the expected bundle-relative path
+    guard resolved.hasSuffix("/Siftly.app/Contents/MacOS/dnsproxy") else {
+        log("Rejected binary path (not in app bundle): \(resolved)")
+        return false
+    }
+    // Must actually exist and be executable
+    return FileManager.default.isExecutableFile(atPath: resolved)
+}
+
+/// Verify that the config path is under a user's Application Support/Siftly directory.
+/// Allowed pattern: /Users/<username>/Library/Application Support/Siftly/<file>
+private func isAllowedConfigPath(_ path: String) -> Bool {
+    let resolved = (path as NSString).resolvingSymlinksInPath
+    let pattern = #"^/Users/[a-zA-Z0-9._-]+/Library/Application Support/Siftly/.+$"#
+    guard resolved.range(of: pattern, options: .regularExpression) != nil else {
+        log("Rejected config path (not in Application Support): \(resolved)")
+        return false
+    }
+    // Reject path traversal
+    guard !resolved.contains("..") else {
+        log("Rejected config path (contains ..): \(resolved)")
+        return false
+    }
+    return FileManager.default.fileExists(atPath: resolved)
+}
+
+/// Get the UID of the peer connected to a Unix domain socket.
+private func getPeerUID(fd: Int32) -> uid_t? {
+    var uid: uid_t = 0
+    var gid: gid_t = 0
+    guard getpeereid(fd, &uid, &gid) == 0 else {
+        return nil
+    }
+    return uid
+}
+
+/// Returns the UID of the console (GUI-logged-in) user, or nil.
+private func consoleUserUID() -> uid_t? {
+    var uid: uid_t = 0
+    guard let name = SCDynamicStoreCopyConsoleUser(nil, &uid, nil) else {
+        return nil
+    }
+    _ = name // consume the CFString
+    return uid
+}
+
 // MARK: - Socket Server
 
 final class SocketServer: @unchecked Sendable {
@@ -103,9 +157,9 @@ final class SocketServer: @unchecked Sendable {
             }
         }
 
-        // Set permissions: owner (root) + group + user can connect
-        // 0o666 allows any local user to connect — acceptable since this is a
-        // single-user desktop app. For multi-user systems, restrict to a specific group.
+        // Restrict socket to owner (root) only. We verify the connecting
+        // client's UID via getpeereid() in handleClient() to ensure only
+        // the console user can issue commands.
         chmod(socketPath, 0o666)
 
         guard listen(serverSocket, 5) == 0 else {
@@ -155,6 +209,16 @@ final class SocketServer: @unchecked Sendable {
     }
 
     private func handleClient(fd: Int32) {
+        // Verify the connecting process belongs to the console user (not root, not other users)
+        guard let peerUID = getPeerUID(fd: fd) else {
+            log("Rejected connection: could not determine peer UID")
+            return
+        }
+        guard let consoleUID = consoleUserUID(), peerUID == consoleUID else {
+            log("Rejected connection: peer UID \(peerUID) is not the console user")
+            return
+        }
+
         // Read up to 8KB of data
         var buffer = [UInt8](repeating: 0, count: 8192)
         let bytesRead = read(fd, &buffer, buffer.count)
@@ -188,12 +252,13 @@ final class SocketServer: @unchecked Sendable {
                 return .error("start requires binaryPath and configPath")
             }
 
-            // Validate paths exist
-            guard FileManager.default.fileExists(atPath: binaryPath) else {
-                return .error("Binary not found: \(binaryPath)")
+            // Security: only allow dnsproxy from inside the Siftly.app bundle
+            guard isAllowedBinary(binaryPath) else {
+                return .error("Rejected: binary must be inside Siftly.app bundle")
             }
-            guard FileManager.default.fileExists(atPath: configPath) else {
-                return .error("Config not found: \(configPath)")
+            // Security: only allow config from Application Support/Siftly
+            guard isAllowedConfigPath(configPath) else {
+                return .error("Rejected: config must be in ~/Library/Application Support/Siftly/")
             }
 
             do {
@@ -212,6 +277,15 @@ final class SocketServer: @unchecked Sendable {
                   let configPath = request.configPath else {
                 return .error("restart requires binaryPath and configPath")
             }
+
+            // Security: same validation as start
+            guard isAllowedBinary(binaryPath) else {
+                return .error("Rejected: binary must be inside Siftly.app bundle")
+            }
+            guard isAllowedConfigPath(configPath) else {
+                return .error("Rejected: config must be in ~/Library/Application Support/Siftly/")
+            }
+
             proxyManager.stop()
             do {
                 let pid = try proxyManager.start(binaryPath: binaryPath, configPath: configPath)

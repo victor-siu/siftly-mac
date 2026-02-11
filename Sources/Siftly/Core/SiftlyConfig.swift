@@ -165,7 +165,8 @@ final class ConfigManager {
 
     init() {
         let fileManager = FileManager.default
-        let configDir = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".siftly")
+        let configDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Siftly")
         self.configPath = configDir.appendingPathComponent("config.yaml")
         self.appStatePath = configDir.appendingPathComponent("profiles.json")
 

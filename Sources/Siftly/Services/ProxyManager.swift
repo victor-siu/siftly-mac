@@ -111,8 +111,8 @@ final class ProxyManager {
         if state == .active { return }
         state = .healing
 
-        let configPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".siftly/config.yaml").path
+        let configPath = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Siftly/config.yaml").path
 
         let needsRoot = configManager.config.listenPorts.contains { $0 < 1024 }
 

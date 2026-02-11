@@ -443,7 +443,7 @@ struct SettingsView: View {
             
             Section {
                 LabeledContent("Config Path") {
-                    Text("~/.siftly/config.yaml")
+                    Text("~/Library/Application Support/Siftly/config.yaml")
                         .textSelection(.enabled)
                 }
             } header: {
