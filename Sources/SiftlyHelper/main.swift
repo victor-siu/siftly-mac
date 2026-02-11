@@ -55,7 +55,7 @@ final class DNSProxyManager {
 
 // MARK: - Socket Server
 
-final class SocketServer {
+final class SocketServer: @unchecked Sendable {
     private let socketPath: String
     private let proxyManager = DNSProxyManager()
     private var serverSocket: Int32 = -1
